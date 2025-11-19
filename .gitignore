@@ -1,0 +1,15 @@
+# Data
+DeepPCB_Raw/
+data/processed/
+
+# System & Environment
+.venv/
+__pycache__/
+.DS_Store
+
+# Outputs
+outputs/*.pth
+
+# Cursor/VSCode
+.vscode/
+
