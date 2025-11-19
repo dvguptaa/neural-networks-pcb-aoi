@@ -1,3 +1,11 @@
+# ==========================================
+# Title:  cnn.py
+# Author: Divyansh Gupta
+# Date:   18 Nov 2025
+# ==========================================
+
+__author__ = "Divyansh Gupta"
+
 """
 Custom CNN (Convolutional Neural Network) model for PCB defect detection.
 """

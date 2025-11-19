@@ -1,3 +1,11 @@
+# ==========================================
+# Title:  mlp.py
+# Author: Divyansh Gupta
+# Date:   18 Nov 2025
+# ==========================================
+
+__author__ = "Divyansh Gupta"
+
 """
 Simple MLP (Multi-Layer Perceptron) model for PCB defect detection.
 Baseline model for comparison.

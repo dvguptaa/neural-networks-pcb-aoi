@@ -1,3 +1,11 @@
+# ==========================================
+# Title:  config.py
+# Author: Divyansh Gupta
+# Date:   18 Nov 2025
+# ==========================================
+
+__author__ = "Divyansh Gupta"
+
 """
 Configuration file for PCB Defect Detection project.
 Contains all hyperparameters and path configurations.

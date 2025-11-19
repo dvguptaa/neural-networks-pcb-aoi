@@ -1,3 +1,11 @@
+# ==========================================
+# Title:  train_classifier.py
+# Author: Divyansh Gupta
+# Date:   18 Nov 2025
+# ==========================================
+
+__author__ = "Divyansh Gupta"
+
 """
 Training script for PCB Defect Detection models.
 Supports training MLP and CNN models.

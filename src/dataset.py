@@ -1,3 +1,11 @@
+# ==========================================
+# Title:  dataset.py
+# Author: Divyansh Gupta
+# Date:   18 Nov 2025
+# ==========================================
+
+__author__ = "Divyansh Gupta"
+
 """
 Custom PyTorch Dataset for PCB Defect Detection.
 Loads images from the DeepPCB dataset and assigns labels based on filename.
