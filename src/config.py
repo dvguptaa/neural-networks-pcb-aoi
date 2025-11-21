@@ -12,7 +12,7 @@ Contains all hyperparameters and path configurations.
 """
 
 # Data paths
-RAW_DATA_PATH = "DeepPCB_Raw/PCBData"
+RAW_DATA_PATH = "DeepPCB-master/PCBData"
 PROCESSED_DATA_PATH = "data/processed"
 
 # Image configurations

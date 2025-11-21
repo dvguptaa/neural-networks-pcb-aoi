@@ -4,6 +4,7 @@
 # Date:   18 Nov 2025
 # ==========================================
 
+
 __author__ = "Divyansh Gupta"
 
 """
@@ -21,7 +22,8 @@ from torchvision import transforms
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from tqdm import tqdm
 
-from src.dataset import PCBDataset
+from src.deep_pcb_dataset import DeepPCBClassificationDataset
+
 from src.models.mlp import SimpleMLP
 from src.models.cnn import CustomCNN
 from src.config import MLP_INPUT_SIZE, IMAGE_SIZE, BATCH_SIZE, LEARNING_RATE, EPOCHS
@@ -122,10 +124,15 @@ def main():
     transform = get_transforms(args.model)
     
     # Instantiate dataset
-    print("Loading dataset...")
-    dataset = PCBDataset(transform=transform)
-    print(f"Total images: {len(dataset)}")
-    
+    # Instantiate dataset
+    print("loading DeepPCB dataset...")
+    dataset = DeepPCBClassificationDataset(
+        model_type=args.model,
+        transform=transform
+    )
+    print("total images in dataset =", len(dataset))
+
+
     # Split dataset: 80% train, 20% validation
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
