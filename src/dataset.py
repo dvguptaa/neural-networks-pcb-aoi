@@ -2,6 +2,7 @@
 # Title:  dataset.py
 # Author: Divyansh Gupta
 # Date:   18 Nov 2025
+# Updated: Added error handling and class distribution logging
 # ==========================================
 
 __author__ = "Divyansh Gupta"
@@ -48,6 +49,41 @@ class PCBDataset(Dataset):
                 elif file.endswith('_temp.jpg'):
                     # Class 0: Normal
                     self.data.append((file_path, 0))
+        
+        # Log class distribution
+        self._log_distribution()
+    
+    def _log_distribution(self):
+        """Print class distribution for debugging."""
+        labels = [label for _, label in self.data]
+        n_defect = sum(labels)
+        n_normal = len(labels) - n_defect
+        total = len(labels)
+        
+        print(f"\n📊 Dataset Distribution:")
+        print(f"   Normal (0): {n_normal} ({100*n_normal/total:.1f}%)")
+        print(f"   Defect (1): {n_defect} ({100*n_defect/total:.1f}%)")
+        print(f"   Total: {total}\n")
+    
+    def get_class_weights(self):
+        """
+        Calculate class weights for handling imbalance.
+        
+        Returns:
+            torch.Tensor: Weight for positive class (defect)
+        """
+        labels = [label for _, label in self.data]
+        n_defect = sum(labels)
+        n_normal = len(labels) - n_defect
+        
+        # Weight = n_negative / n_positive
+        # Higher weight for minority class
+        if n_defect > 0:
+            pos_weight = torch.tensor([n_normal / n_defect])
+        else:
+            pos_weight = torch.tensor([1.0])
+        
+        return pos_weight
     
     def __getitem__(self, idx):
         """
@@ -64,6 +100,10 @@ class PCBDataset(Dataset):
         # Load image using cv2
         image = cv2.imread(file_path)
         
+        # Error handling for missing/corrupt images
+        if image is None:
+            raise ValueError(f"Failed to load image: {file_path}")
+        
         # Convert BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
@@ -72,7 +112,7 @@ class PCBDataset(Dataset):
             image = self.transform(image)
         
         # Convert label to tensor
-        label = torch.tensor(label, dtype=torch.long)
+        label = torch.tensor(label, dtype=torch.float32)
         
         return image, label
     
@@ -95,4 +135,7 @@ if __name__ == "__main__":
     image, label = dataset[0]
     print(f"First image shape: {image.shape if hasattr(image, 'shape') else type(image)}")
     print(f"First image label: {label}")
-
+    
+    # Get class weights
+    pos_weight = dataset.get_class_weights()
+    print(f"Positive class weight: {pos_weight.item():.4f}")
