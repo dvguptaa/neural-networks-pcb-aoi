@@ -2,14 +2,14 @@
 # Title:  train_classifier.py
 # Author: Divyansh Gupta
 # Date:   18 Nov 2025
-# Updated: Added seeds, normalization, BCEWithLogitsLoss, early stopping, 80/10/10 split
+# Updated: Fixed for stable CNN training (CPU option for BatchNorm stability)
 # ==========================================
 
 __author__ = "Divyansh Gupta"
 
 """
 Training script for PCB Defect Detection models.
-Supports training MLP and CNN models.
+Supports MLP and custom CNN (as per project proposal).
 """
 
 import argparse
@@ -20,6 +20,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torchvision import transforms
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from tqdm import tqdm
@@ -29,7 +30,7 @@ from src.models.mlp import SimpleMLP
 from src.models.cnn import CustomCNN
 from src.config import (
     MLP_INPUT_SIZE, IMAGE_SIZE, BATCH_SIZE, CNN_BATCH_SIZE,
-    LEARNING_RATE, EPOCHS, SEED, PATIENCE
+    LEARNING_RATE, CNN_LEARNING_RATE, EPOCHS, SEED, PATIENCE
 )
 
 
@@ -40,16 +41,17 @@ def set_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    if torch.backends.mps.is_available():
-        torch.mps.manual_seed(seed)
-    # Make cudnn deterministic (slower but reproducible)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     print(f"🎲 Random seed set to: {seed}")
 
 
-def get_device():
+def get_device(force_cpu=False):
     """Get the best available device."""
+    if force_cpu:
+        print("💻 Using CPU (forced)")
+        return torch.device('cpu')
+    
     if torch.backends.mps.is_available():
         device = torch.device('mps')
         print("🍎 Using Apple MPS (Metal Performance Shaders)")
@@ -63,17 +65,8 @@ def get_device():
 
 
 def get_transforms(model_type, train=True):
-    """
-    Get appropriate transforms based on model type.
+    """Get appropriate transforms based on model type."""
     
-    Args:
-        model_type: 'mlp' or 'cnn'
-        train: If True, include data augmentation
-        
-    Returns:
-        transforms.Compose: Transform pipeline
-    """
-    # ImageNet normalization values
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]
@@ -85,7 +78,6 @@ def get_transforms(model_type, train=True):
         size = IMAGE_SIZE
     
     if train:
-        # Training transforms with augmentation
         return transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize(size),
@@ -97,7 +89,6 @@ def get_transforms(model_type, train=True):
             normalize
         ])
     else:
-        # Validation/test transforms (no augmentation)
         return transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize(size),
@@ -111,32 +102,38 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def train_epoch(model, dataloader, criterion, optimizer, device):
-    """Train for one epoch."""
+def train_epoch(model, dataloader, criterion, optimizer, device, epoch, warmup_epochs=5):
+    """Train for one epoch with optional warmup."""
     model.train()
     running_loss = 0.0
     all_preds = []
     all_labels = []
     
-    for images, labels in tqdm(dataloader, desc="Training", leave=False):
+    for batch_idx, (images, labels) in enumerate(tqdm(dataloader, desc="Training", leave=False)):
         images = images.to(device)
         labels = labels.to(device)
         
-        # Forward pass
         optimizer.zero_grad()
         outputs = model(images).squeeze()
-        loss = criterion(outputs, labels)
         
-        # Backward pass
+        # Handle single sample case
+        if outputs.dim() == 0:
+            outputs = outputs.unsqueeze(0)
+        
+        loss = criterion(outputs, labels)
         loss.backward()
+        
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer.step()
         
         running_loss += loss.item()
         
-        # Track predictions (convert logits to binary)
-        preds = (torch.sigmoid(outputs) > 0.5).float().cpu().numpy()
-        all_preds.extend(preds)
-        all_labels.extend(labels.cpu().numpy())
+        with torch.no_grad():
+            preds = (torch.sigmoid(outputs) > 0.5).float().cpu().numpy()
+            all_preds.extend(preds.flatten())
+            all_labels.extend(labels.cpu().numpy().flatten())
     
     avg_loss = running_loss / len(dataloader)
     accuracy = accuracy_score(all_labels, all_preds)
@@ -150,26 +147,25 @@ def validate(model, dataloader, criterion, device):
     running_loss = 0.0
     all_preds = []
     all_labels = []
-    all_probs = []
     
     with torch.no_grad():
         for images, labels in tqdm(dataloader, desc="Validating", leave=False):
             images = images.to(device)
             labels = labels.to(device)
             
-            # Forward pass
             outputs = model(images).squeeze()
-            loss = criterion(outputs, labels)
             
+            if outputs.dim() == 0:
+                outputs = outputs.unsqueeze(0)
+            
+            loss = criterion(outputs, labels)
             running_loss += loss.item()
             
-            # Convert logits to probabilities and predictions
             probs = torch.sigmoid(outputs).cpu().numpy()
             preds = (probs > 0.5).astype(float)
             
-            all_probs.extend(probs)
-            all_preds.extend(preds)
-            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(preds.flatten())
+            all_labels.extend(labels.cpu().numpy().flatten())
     
     avg_loss = running_loss / len(dataloader)
     accuracy = accuracy_score(all_labels, all_preds)
@@ -186,41 +182,53 @@ def print_confusion_matrix(y_true, y_pred, title="Confusion Matrix"):
     print(f"\n{title}:")
     print(f"              Predicted")
     print(f"              Normal  Defect")
-    print(f"Actual Normal   {cm[0][0]:5d}   {cm[0][1]:5d}")
-    print(f"       Defect   {cm[1][0]:5d}   {cm[1][1]:5d}")
+    if len(cm) == 2:
+        print(f"Actual Normal   {cm[0][0]:5d}   {cm[0][1]:5d}")
+        print(f"       Defect   {cm[1][0]:5d}   {cm[1][1]:5d}")
+    else:
+        print(f"Warning: Unexpected confusion matrix shape: {cm.shape}")
+        print(cm)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Train PCB Defect Detection Model')
     parser.add_argument('--model', type=str, choices=['mlp', 'cnn'], required=True,
-                        help='Model type to train: mlp or cnn')
+                        help='Model type: mlp or cnn')
     parser.add_argument('--no-augment', action='store_true',
                         help='Disable data augmentation')
+    parser.add_argument('--cpu', action='store_true',
+                        help='Force CPU training (more stable for CNN with BatchNorm)')
     args = parser.parse_args()
     
-    # Set seed for reproducibility
     set_seed(SEED)
     
-    # Set device
-    device = get_device()
+    # For CNN, recommend CPU for stable BatchNorm training
+    if args.model == 'cnn' and not args.cpu:
+        print("\n⚠️  Note: CNN with BatchNorm may train better with --cpu flag")
+        print("   If training gets stuck, try: python -m src.train_classifier --model cnn --cpu\n")
     
-    # Determine batch size based on model type
-    batch_size = CNN_BATCH_SIZE if args.model == 'cnn' else BATCH_SIZE
+    device = get_device(force_cpu=args.cpu)
     
-    # Get transforms
+    # Model-specific settings
+    if args.model == 'mlp':
+        batch_size = BATCH_SIZE
+        learning_rate = LEARNING_RATE
+    else:  # cnn
+        batch_size = CNN_BATCH_SIZE
+        learning_rate = CNN_LEARNING_RATE
+    
+    # Transforms
     train_transform = get_transforms(args.model, train=not args.no_augment)
     val_transform = get_transforms(args.model, train=False)
     
-    # Instantiate dataset (with validation transform initially to get class weights)
     print("\n📂 Loading dataset...")
     full_dataset = PCBDataset(transform=val_transform)
     print(f"Total images: {len(full_dataset)}")
     
-    # Get class weights for imbalanced data handling
     pos_weight = full_dataset.get_class_weights().to(device)
     print(f"📊 Positive class weight: {pos_weight.item():.4f}")
     
-    # Split dataset: 80% train, 10% validation, 10% test
+    # Split dataset: 80/10/10
     total_size = len(full_dataset)
     train_size = int(0.8 * total_size)
     val_size = int(0.1 * total_size)
@@ -232,14 +240,11 @@ def main():
         generator=torch.Generator().manual_seed(SEED)
     )
     
-    # Apply training transforms to train set
-    # Note: We need to create separate datasets for this to work properly
-    # For simplicity, we'll use the same transform and rely on augmentation randomness
+    # Training dataset with augmentation
     train_dataset_aug = PCBDataset(transform=train_transform)
     train_indices = train_dataset.indices
     train_dataset_aug = torch.utils.data.Subset(train_dataset_aug, train_indices)
     
-    # Create DataLoaders
     train_loader = DataLoader(train_dataset_aug, batch_size=batch_size, shuffle=True, 
                               num_workers=0, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -253,28 +258,36 @@ def main():
     # Initialize model
     if args.model == 'mlp':
         model = SimpleMLP().to(device)
-    elif args.model == 'cnn':
+    else:  # cnn
         model = CustomCNN().to(device)
     
     n_params = count_parameters(model)
     print(f"\n🧠 Model: {args.model.upper()}")
     print(f"   Parameters: {n_params:,}")
     
-    # Initialize optimizer and criterion
-    # Using BCEWithLogitsLoss for numerical stability + class weighting
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    # Optimizer - use SGD with momentum for CNN (more stable)
+    if args.model == 'cnn':
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=1e-4)
+        print(f"   Optimizer: SGD (momentum=0.9, weight_decay=1e-4)")
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        print(f"   Optimizer: Adam")
+    
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
+    # Cosine annealing scheduler
+    scheduler = CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=learning_rate * 0.01)
     
     print(f"\n⚙️  Training config:")
     print(f"   Batch size: {batch_size}")
-    print(f"   Learning rate: {LEARNING_RATE}")
+    print(f"   Learning rate: {learning_rate}")
     print(f"   Epochs: {EPOCHS}")
     print(f"   Early stopping patience: {PATIENCE}")
     print(f"   Data augmentation: {'Disabled' if args.no_augment else 'Enabled'}")
+    print(f"   Device: {device}")
     
-    # Training loop with early stopping
+    # Training loop
     best_val_f1 = 0.0
-    best_val_acc = 0.0
     epochs_without_improvement = 0
     os.makedirs('outputs', exist_ok=True)
     
@@ -286,28 +299,24 @@ def main():
         print(f"Epoch {epoch + 1}/{EPOCHS}")
         print("-" * 50)
         
-        # Train
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"Current LR: {current_lr:.6f}")
         
-        # Validate
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, epoch)
         val_loss, val_acc, val_prec, val_rec, val_f1, val_preds, val_labels = validate(
             model, val_loader, criterion, device
         )
         
-        # Print metrics
+        scheduler.step()
+        
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f}")
         print(f"Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.4f}")
         print(f"Val Precision: {val_prec:.4f} | Recall: {val_rec:.4f} | F1: {val_f1:.4f}")
         
-        # Check for improvement (using F1 as primary metric)
-        improved = False
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1
-            best_val_acc = val_acc
             epochs_without_improvement = 0
-            improved = True
             
-            # Save best model
             model_path = f"outputs/{args.model}_best.pth"
             torch.save({
                 'epoch': epoch,
@@ -321,19 +330,17 @@ def main():
             epochs_without_improvement += 1
             print(f"⏳ No improvement for {epochs_without_improvement} epoch(s)")
         
-        # Early stopping check
         if epochs_without_improvement >= PATIENCE:
             print(f"\n🛑 Early stopping triggered after {epoch + 1} epochs")
             break
         
         print()
     
-    # Final evaluation on test set
+    # Final evaluation
     print(f"\n{'='*70}")
     print("Final Evaluation on Test Set")
     print(f"{'='*70}")
     
-    # Load best model
     checkpoint = torch.load(f"outputs/{args.model}_best.pth", map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     

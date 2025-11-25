@@ -1,5 +1,2 @@
-"""
-Model definitions package
-Contains MLP, Custom CNN, and YOLO model implementations
-"""
-
+from src.models.mlp import SimpleMLP
+from src.models.cnn import CustomCNN
