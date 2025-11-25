@@ -2,12 +2,11 @@
 
 ## 📋 Project Overview
 
-This project compares **four deep learning approaches** for detecting defects in Printed Circuit Board (PCB) images:
+This project implements **three deep learning approaches** for detecting defects in Printed Circuit Board (PCB) images, as specified in our proposal:
 
-1. **MLP (Multi-Layer Perceptron)** - Simple baseline classifier
-2. **Custom CNN** - 4-layer convolutional neural network built from scratch
-3. **ResNet (Transfer Learning)** - Pre-trained ResNet18 fine-tuned for classification
-4. **YOLO** - Pre-trained YOLOv8 fine-tuned for defect detection (localization)
+1. **MLP (Multi-Layer Perceptron)** - Baseline classifier that flattens input images
+2. **Custom CNN** - 4-layer convolutional neural network with BatchNorm and Dropout
+3. **YOLO (YOLOv8)** - Pre-trained model fine-tuned for defect detection and localization
 
 **Dataset:** DeepPCB (3,001 images, 6 defect types)
 
@@ -15,15 +14,16 @@ This project compares **four deep learning approaches** for detecting defects in
 
 ## 🏆 Results Summary
 
-### Classification Models (Binary: Normal vs Defect)
+### Required Models (Per Proposal)
+
+#### Classification Models (Binary: Normal vs Defect)
 
 | Model | Accuracy | Precision | Recall | F1-Score |
 |-------|----------|-----------|--------|----------|
-| MLP | 51.5% | 52.2% | 89.2% | 68.6% |
+| MLP (Baseline) | 51.5% | 52.2% | 89.2% | 68.6% |
 | Custom CNN | 52.2% | 52.3% | 99.4% | 68.6% |
-| **ResNet18** | **98.0%** | **98.1%** | **98.1%** | **98.1%** |
 
-### Object Detection Model (YOLO - Localization)
+#### Object Detection Model (YOLO - Localization)
 
 | Metric | Score |
 |--------|-------|
@@ -41,6 +41,18 @@ This project compares **four deep learning approaches** for detecting defects in
 | spur | 97.3% | 73.3% | Spur/protrusion |
 | copper | 92.2% | 87.2% | Copper defect |
 | pinhole | 97.5% | 94.7% | Pin hole |
+
+---
+
+### 🔬 Bonus Experiment: Transfer Learning Comparison
+
+To demonstrate the benefits of transfer learning on small datasets, we also trained a **ResNet18** model (not in original proposal):
+
+| Model | Accuracy | Precision | Recall | F1-Score |
+|-------|----------|-----------|--------|----------|
+| **ResNet18** | **98.0%** | **98.1%** | **98.1%** | **98.1%** |
+
+> **Why include this?** The Custom CNN struggled to learn meaningful features from scratch with only ~2,400 training images. ResNet18 (pre-trained on ImageNet) demonstrates how transfer learning can dramatically improve performance on small datasets.
 
 ---
 
@@ -80,7 +92,9 @@ DeepPCB_Raw/PCBData/
 
 ## 🏋️ Training Models
 
-### 1. Train MLP (Baseline)
+### Required Models (Per Proposal)
+
+#### 1. Train MLP (Baseline)
 
 ```bash
 python -m src.train_classifier --model mlp
@@ -89,7 +103,7 @@ python -m src.train_classifier --model mlp
 - **Runtime:** ~5 minutes
 - **Output:** `outputs/mlp_best.pth`
 
-### 2. Train Custom CNN
+#### 2. Train Custom CNN
 
 ```bash
 # Option 1: Use GPU (MPS on Mac)
@@ -102,16 +116,7 @@ python -m src.train_classifier --model cnn --cpu
 - **Runtime:** ~20-30 minutes
 - **Output:** `outputs/cnn_best.pth`
 
-### 3. Train ResNet (Recommended for Classification)
-
-```bash
-python -m src.train_classifier --model resnet
-```
-
-- **Runtime:** ~30-45 minutes
-- **Output:** `outputs/resnet_best.pth`
-
-### 4. Train YOLO (For Object Detection/Localization)
+#### 3. Train YOLO (Object Detection/Localization)
 
 First, convert annotations to YOLO format:
 ```bash
@@ -130,6 +135,16 @@ To evaluate:
 ```bash
 python -m src.train_yolo --eval
 ```
+
+### Bonus: Train ResNet (Transfer Learning Experiment)
+
+```bash
+python -m src.train_classifier --model resnet
+```
+
+- **Runtime:** ~30-45 minutes
+- **Output:** `outputs/resnet_best.pth`
+- **Note:** This is an additional experiment not in the original proposal
 
 ---
 
@@ -217,17 +232,21 @@ Input (224×224×3)
 
 ## 📊 Key Findings
 
-1. **MLP Limitations:** Flattening images destroys spatial information, limiting accuracy to ~50%
+### From Required Models
 
-2. **CNN Challenges:** Training from scratch on a small dataset (~2,400 training images) is difficult; the model struggles to learn meaningful features without pre-trained weights
+1. **MLP Limitations:** Flattening images destroys spatial information, limiting accuracy to ~50%. This confirms our hypothesis that spatial features are critical for PCB defect detection.
 
-3. **Transfer Learning Wins:** ResNet18 with ImageNet pre-training achieves **98% accuracy**, demonstrating the power of transfer learning for small datasets
+2. **Custom CNN Challenges:** Training a CNN from scratch on a small dataset (~2,400 training images) is difficult. The model achieves similar accuracy to MLP, struggling to learn discriminative features.
 
-4. **YOLO Performance:** Object detection with YOLO achieves **92.8% mAP**, enabling precise localization of defects
+3. **YOLO Success:** Pre-trained YOLOv8 achieves **92.8% mAP**, demonstrating excellent defect localization. This confirms that transfer learning from large datasets (COCO) benefits PCB inspection.
 
-5. **Best Detected Defects:** Pinhole (97.5% precision) and Spur (97.3% precision) are easiest to detect
+4. **Best Detected Defects:** Pinhole (97.5% precision) and Spur (97.3% precision) are easiest to detect due to their distinct visual patterns.
 
-6. **Challenging Defects:** Short circuits have lower precision (82.2%) but high recall (94.9%)
+5. **Challenging Defects:** Short circuits have lower precision (82.2%) but high recall (94.9%), meaning the model rarely misses them but has some false positives.
+
+### From Bonus Experiment
+
+6. **Transfer Learning Advantage:** ResNet18 (bonus experiment) achieves **98% accuracy** vs Custom CNN's 52%, demonstrating that pre-trained weights are essential for small datasets. This insight explains why YOLO also performs well.
 
 ---
 
@@ -249,12 +268,12 @@ Input (224×224×3)
 
 ### Changes in fix/raj branch:
 - Added data augmentation (flip, rotation, color jitter)
-- Added ImageNet normalization for transfer learning
-- Fixed CNN architecture (4 conv layers + BatchNorm + Dropout)
-- Added ResNet18 transfer learning option
-- Added YOLO training pipeline
+- Added ImageNet normalization
+- Implemented Custom CNN architecture (4 conv layers + BatchNorm + Dropout)
+- Added YOLO training pipeline with annotation converter
 - Added early stopping and learning rate scheduling
 - Added comprehensive logging and metrics
+- **Bonus:** Added ResNet18 transfer learning for comparison
 
 ---
 
