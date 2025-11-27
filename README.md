@@ -230,6 +230,85 @@ Input (224×224×3)
 
 ---
 
+## 📈 Evaluation and Benchmarking
+
+After training all models, you can run comprehensive evaluation and benchmarking to compare performance metrics.
+
+### Quick Evaluation
+
+Run the comprehensive evaluation script to get all metrics (accuracy, FPS, model size):
+
+```bash
+python -m src.evaluate_all
+```
+
+This will:
+- Evaluate all models on the test set
+- Measure inference speed (FPS)
+- Calculate model sizes (parameters, file size, memory)
+- Generate comparison tables
+- Save results to `outputs/evaluation_results.json` and `outputs/evaluation_results.csv`
+
+### Individual Benchmarking
+
+#### Inference Speed (FPS)
+
+Benchmark inference speed for all models:
+
+```bash
+python -m src.benchmark_inference
+```
+
+Options:
+- `--warmup N`: Number of warm-up iterations (default: 10)
+- `--runs N`: Number of benchmark runs (default: 100)
+- `--cpu`: Force CPU benchmarking
+
+Results are saved to `outputs/benchmark_results.json`.
+
+#### Model Size Measurement
+
+Measure model sizes (parameters, file size, memory footprint):
+
+```bash
+python -m src.measure_model_size
+```
+
+Results are saved to `outputs/model_sizes.json`.
+
+### Comparative Visualizations
+
+Generate visualizations comparing all models:
+
+```bash
+python -m src.visualize_comparison
+```
+
+This creates the following plots in `outputs/comparison/`:
+- `accuracy_comparison.png` - Bar chart comparing accuracy/mAP
+- `fps_comparison.png` - Bar chart comparing inference speed
+- `model_size_comparison.png` - Bar charts for parameters and file size
+- `accuracy_vs_fps.png` - Scatter plot showing accuracy-speed trade-off
+- `metrics_radar.png` - Radar chart with multi-metric comparison
+
+### Evaluation Results
+
+The evaluation scripts generate comprehensive comparison tables showing:
+
+| Metric | MLP | CNN | YOLO |
+|--------|-----|-----|------|
+| Accuracy/mAP | - | - | - |
+| Precision | - | - | - |
+| Recall | - | - | - |
+| F1-Score | - | - | - |
+| FPS | - | - | - |
+| Parameters | - | - | - |
+| File Size (MB) | - | - | - |
+
+> **Note:** Run `python -m src.evaluate_all` to populate these metrics after all models are trained.
+
+---
+
 ## 📊 Key Findings
 
 ### From Required Models
