@@ -19,12 +19,12 @@ RAW_DATA_PATH = "DeepPCB_Raw/PCBData"
 PROCESSED_DATA_PATH = "data/processed"
 
 # Image configurations
-IMAGE_SIZE = (224, 224)   # For CNN
+IMAGE_SIZE = (640, 640)   # For CNN (matches YOLO training size)
 MLP_INPUT_SIZE = (64, 64)  # For MLP
 
 # Training hyperparameters
 BATCH_SIZE = 32           # For MLP
-CNN_BATCH_SIZE = 32       # Larger batch for stable BatchNorm
+CNN_BATCH_SIZE = 16       # Reduced for 640x640 images (matches YOLO batch size)
 
 LEARNING_RATE = 0.001     # For MLP (Adam)
 CNN_LEARNING_RATE = 0.01  # For CNN (SGD with momentum)
