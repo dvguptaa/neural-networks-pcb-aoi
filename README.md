@@ -18,29 +18,29 @@ This project implements **three deep learning approaches** for detecting defects
 
 #### Classification Models (Binary: Normal vs Defect)
 
-| Model | Accuracy | Precision | Recall | F1-Score |
-|-------|----------|-----------|--------|----------|
-| MLP (Baseline) | 51.5% | 52.2% | 89.2% | 68.6% |
-| Custom CNN | 52.2% | 52.3% | 99.4% | 68.6% |
+| Model          | Accuracy | Precision | Recall | F1-Score |
+| -------------- | -------- | --------- | ------ | -------- |
+| MLP (Baseline) | 51.5%    | 52.2%     | 89.2%  | 68.6%    |
+| Custom CNN     | 52.2%    | 52.3%     | 99.4%  | 68.6%    |
 
 #### Object Detection Model (YOLO - Localization)
 
-| Metric | Score |
-|--------|-------|
-| mAP@0.5 | **92.8%** |
-| mAP@0.5:0.95 | 55.7% |
-| Precision | 90.5% |
-| Recall | 86.9% |
+| Metric       | Score     |
+| ------------ | --------- |
+| mAP@0.5      | **92.8%** |
+| mAP@0.5:0.95 | 55.7%     |
+| Precision    | 90.5%     |
+| Recall       | 86.9%     |
 
 ### YOLO Per-Class Performance
 
-| Defect Type | Precision | Recall | Description |
-|-------------|-----------|--------|-------------|
-| short | 82.2% | 94.9% | Short circuit |
-| mousebite | 83.1% | 84.4% | Mouse bite defect |
-| spur | 97.3% | 73.3% | Spur/protrusion |
-| copper | 92.2% | 87.2% | Copper defect |
-| pinhole | 97.5% | 94.7% | Pin hole |
+| Defect Type | Precision | Recall | Description       |
+| ----------- | --------- | ------ | ----------------- |
+| short       | 82.2%     | 94.9%  | Short circuit     |
+| mousebite   | 83.1%     | 84.4%  | Mouse bite defect |
+| spur        | 97.3%     | 73.3%  | Spur/protrusion   |
+| copper      | 92.2%     | 87.2%  | Copper defect     |
+| pinhole     | 97.5%     | 94.7%  | Pin hole          |
 
 ---
 
@@ -48,8 +48,8 @@ This project implements **three deep learning approaches** for detecting defects
 
 To demonstrate the benefits of transfer learning on small datasets, we also trained a **ResNet18** model (not in original proposal):
 
-| Model | Accuracy | Precision | Recall | F1-Score |
-|-------|----------|-----------|--------|----------|
+| Model        | Accuracy  | Precision | Recall    | F1-Score  |
+| ------------ | --------- | --------- | --------- | --------- |
 | **ResNet18** | **98.0%** | **98.1%** | **98.1%** | **98.1%** |
 
 > **Why include this?** The Custom CNN struggled to learn meaningful features from scratch with only ~2,400 training images. ResNet18 (pre-trained on ImageNet) demonstrates how transfer learning can dramatically improve performance on small datasets.
@@ -84,6 +84,7 @@ pip install -r requirements.txt
 ### Download Dataset
 
 Ensure DeepPCB dataset is placed at:
+
 ```
 DeepPCB_Raw/PCBData/
 ```
@@ -119,11 +120,13 @@ python -m src.train_classifier --model cnn --cpu
 #### 3. Train YOLO (Object Detection/Localization)
 
 First, convert annotations to YOLO format:
+
 ```bash
 python -m src.convert_to_yolo
 ```
 
 Then train:
+
 ```bash
 python -m src.train_yolo --train --model s --epochs 50
 ```
@@ -132,6 +135,7 @@ python -m src.train_yolo --train --model s --epochs 50
 - **Output:** `outputs/yolo_pcb/weights/best.pt`
 
 To evaluate:
+
 ```bash
 python -m src.train_yolo --eval
 ```
@@ -182,32 +186,35 @@ neural-networks-pcb-aoi/
 
 Key settings in `src/config.py`:
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `SEED` | 42 | Random seed for reproducibility |
-| `IMAGE_SIZE` | (224, 224) | Input size for CNN/ResNet |
-| `MLP_INPUT_SIZE` | (64, 64) | Input size for MLP |
-| `BATCH_SIZE` | 32 | Batch size for MLP |
-| `CNN_BATCH_SIZE` | 32 | Batch size for CNN |
-| `LEARNING_RATE` | 0.001 | MLP learning rate |
-| `CNN_LEARNING_RATE` | 0.01 | CNN learning rate |
-| `EPOCHS` | 50 | Maximum training epochs |
-| `PATIENCE` | 10 | Early stopping patience |
+| Parameter           | Value      | Description                     |
+| ------------------- | ---------- | ------------------------------- |
+| `SEED`              | 42         | Random seed for reproducibility |
+| `IMAGE_SIZE`        | (224, 224) | Input size for CNN/ResNet       |
+| `MLP_INPUT_SIZE`    | (64, 64)   | Input size for MLP              |
+| `BATCH_SIZE`        | 32         | Batch size for MLP              |
+| `CNN_BATCH_SIZE`    | 32         | Batch size for CNN              |
+| `LEARNING_RATE`     | 0.001      | MLP learning rate               |
+| `CNN_LEARNING_RATE` | 0.01       | CNN learning rate               |
+| `EPOCHS`            | 50         | Maximum training epochs         |
+| `PATIENCE`          | 10         | Early stopping patience         |
 
 ---
 
 ## 🏗️ Model Architectures
 
 ### MLP (Multi-Layer Perceptron)
+
 ```
-Input (64×64×3 = 12,288) 
+Input (64×64×3 = 12,288)
     → Linear(512) + BatchNorm + ReLU + Dropout(0.3)
     → Linear(128) + BatchNorm + ReLU + Dropout(0.3)
     → Linear(1) → Output
 ```
+
 **Parameters:** ~6.4M
 
 ### Custom CNN
+
 ```
 Input (224×224×3)
     → Conv(32) + BatchNorm + ReLU + MaxPool + Dropout(0.25)  [112×112]
@@ -216,14 +223,17 @@ Input (224×224×3)
     → Conv(256) + BatchNorm + ReLU + MaxPool + Dropout(0.25) [14×14]
     → GlobalAvgPool → Linear(128) + Dropout(0.5) → Linear(1) → Output
 ```
+
 **Parameters:** ~460K
 
 ### ResNet18 (Transfer Learning)
+
 - Pre-trained on ImageNet
 - Final FC layer replaced for binary classification
 - **Parameters:** ~11M
 
 ### YOLO (YOLOv8-small)
+
 - Pre-trained on COCO dataset
 - Fine-tuned on DeepPCB for 6-class detection
 - **Parameters:** ~11M
@@ -252,12 +262,12 @@ Input (224×224×3)
 
 ## 👥 Team Contributions
 
-| Member | Contributions |
-|--------|--------------|
-| Raj | MLP/CNN implementation, training pipeline, model debugging |
-| Divyansh | Initial codebase setup, data pipeline |
-| Siddhant | YOLO implementation, GitHub management |
-| Anurag | Dataset preparation, evaluation |
+| Member   | Contributions                                              |
+| -------- | ---------------------------------------------------------- |
+| Raj      | MLP/CNN implementation, training pipeline, model debugging |
+| Divyansh | Initial codebase setup, data pipeline                      |
+| Siddhant | YOLO implementation, GitHub management                     |
+| Anurag   | Dataset preparation, evaluation                            |
 
 ---
 
@@ -267,6 +277,7 @@ Input (224×224×3)
 - **fix/raj:** Complete implementation with all models trained
 
 ### Changes in fix/raj branch:
+
 - Added data augmentation (flip, rotation, color jitter)
 - Added ImageNet normalization
 - Implemented Custom CNN architecture (4 conv layers + BatchNorm + Dropout)
@@ -288,4 +299,3 @@ Input (224×224×3)
 ## 📄 License
 
 This project is for educational purposes (ECE 539 - Fall 2025, UW-Madison).
-

@@ -265,10 +265,10 @@ def main():
     print(f"\n🧠 Model: {args.model.upper()}")
     print(f"   Parameters: {n_params:,}")
     
-    # Optimizer - use SGD with momentum for CNN (more stable)
+    # Optimizer - use Adam for CNN (more stable with lower learning rate)
     if args.model == 'cnn':
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=1e-4)
-        print(f"   Optimizer: SGD (momentum=0.9, weight_decay=1e-4)")
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+        print(f"   Optimizer: Adam (weight_decay=1e-4)")
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         print(f"   Optimizer: Adam")

@@ -27,7 +27,7 @@ BATCH_SIZE = 32           # For MLP
 CNN_BATCH_SIZE = 16       # Reduced for 640x640 images (matches YOLO batch size)
 
 LEARNING_RATE = 0.001     # For MLP (Adam)
-CNN_LEARNING_RATE = 0.01  # For CNN (SGD with momentum)
+CNN_LEARNING_RATE = 0.001  # For CNN (Adam optimizer - reduced from 0.01 for better convergence)
 
 EPOCHS = 50
 PATIENCE = 10
