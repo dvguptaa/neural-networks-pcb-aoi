@@ -6,4 +6,6 @@ pandas
 scikit-learn
 ultralytics
 tqdm
+streamlit
+pillow
 
